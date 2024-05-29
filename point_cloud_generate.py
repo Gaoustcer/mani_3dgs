@@ -12,38 +12,40 @@ import argparse
 使用coloricp来计算每2帧之间的变换, 而后通过多视角rgb和depth来进行点云融合
 """
 
-def depth_image_to_point_cloud(depth_image, color_image, fx, fy, cx, cy, camera2base, mask):
+def depth_image_to_point_cloud(depth_image, color_image, fx, fy, cx, cy, camera2base, mask,normal_image):
     """
     param
     depth_image: 深度信息
     color_image: RGB信息
     fx, fy, cx, cy: 内参信息
     """
-    height, width = depth_image.shape 
+    height, width = depth_image.shape # store in height and width
     u, v = np.meshgrid(np.arange(width), np.arange(height))
     Z = depth_image
     X = (u - cx) * Z / fx
     Y = (v - cy) * Z / fy
     mask = mask * (depth_image > 0.001) * (depth_image < 1.2)
     mask = mask > 0
-    point_cloud = np.dstack((X, Y, Z)) 
+    point_cloud = np.dstack((X, Y, Z)) # [height, width, 3]
     point_cloud = point_cloud[mask] 
-    color = color_image[mask]  
+    color = color_image[mask]/255.0  
+    normal = normal_image[mask]
     pts = merge_point_clouds(point_cloud, color, camera2base)
 
-    return pts
+    return pts,color,normal
 
 def merge_point_clouds(points, colors, trans):
+    import pdb
+    # pdb.set_trace()
     column = np.ones((points.shape[0], 1))
     Tp_Nx4 = np.hstack((points, column))
     Tp_4xN = np.transpose(Tp_Nx4)
     matrix_Nx4 = np.dot(trans, Tp_4xN).T
     matrix_3columns = matrix_Nx4[:, :3]
-
-    z_mask = (matrix_3columns[:, 2] > -0.3) *  (matrix_3columns[:, 2] < -0.1)
-    merge = np.concatenate((matrix_3columns[z_mask, :], colors[z_mask, :].astype(np.uint8)), axis=1)
+    # z_mask = (matrix_3columns[:, 2] > -0.3) *  (matrix_3columns[:, 2] < -0.1)
+    # merge = np.concatenate((matrix_3columns, colors.astype(np.uint8)), axis=1)
     
-    return merge
+    return matrix_3columns
 
 def coloricp(source, target):
     src = o3d.geometry.PointCloud()
@@ -92,6 +94,7 @@ def get_pts_and_normal(depth_path, image_path, normal_path, extrinsic_file, mask
     depth_list = sorted(os.listdir(depth_path))
     image_list = sorted(os.listdir(image_path))
     mask_list = sorted(os.listdir(mask_path))
+    normal_list = sorted(os.listdir(normal_path))
     f = open(extrinsic_file, 'r')
     pts = []
     camera2base_list = []
@@ -111,16 +114,23 @@ def get_pts_and_normal(depth_path, image_path, normal_path, extrinsic_file, mask
         depth = np.load(depth_path + depth_list[i]) / 1000
         image = np.array(Image.open(image_path + image_list[i]))
         mask = np.load(mask_path + mask_list[i])
-        point_cloud = depth_image_to_point_cloud(depth, image, fx, fy, cx, cy, camera2base_list[i], mask)
+        normal = np.load(normal_path + normal_list[i])
+        point_cloud = depth_image_to_point_cloud(depth, image, fx, fy, cx, cy, camera2base_list[i], mask, normal) 
+        # point_cloud includes 
+        # 1. point coordinate
+        # 2. rgb [0,1]
+        # 3. normal
         pts.append(point_cloud)
-    for i in range(len(depth_list)):
-        depth = np.load(depth_path + depth_list[i]) / 1000
-        save_path = normal_path + depth_list[i]
-        cal_normal(depth, camera2base_list[i], save_path)
+    # for i in range(len(depth_list)):
+    #     depth = np.load(depth_path + depth_list[i]) / 1000
+    #     save_path = normal_path + depth_list[i]
+    #     cal_normal(depth, camera2base_list[i], save_path)
         # least_square_normal(depth, intrinsic, camera2base_list[i], save_path)
-    return pts, camera2base_list
+    # print(pts)
+    return pts, camera2base_list,image_list
 
-def gen_transforms(camera2base_list, save_path):
+
+def gen_transforms(camera2base_list, save_path,img_path,root_path):
     camera = dict()
     camera['fl_x'] = 385.86016845703125
     camera['fl_y'] = 385.3817443847656
@@ -134,17 +144,31 @@ def gen_transforms(camera2base_list, save_path):
     camera['p1'] = -0.0007415282307192683
     camera['p2'] = 0.0006959497695788741
     frames = []
+    # 3dgs cam_infos list with
+    # 1. R and T matrix
+    # 2. FovX/FoVY
+    # 3. PIL image and image path
+    # 4. image width and height
+    # image = Image.open(os.path.join(root_path,img_path[0]))
+    # width, height = image.size
     for i in range(len(camera2base_list)):
         transform_dict = {}
-        transform_dict["file_path"] = "images/images_" + str("%04d"%(i+1)) + '.png'
-        transform_list = []
-        for j in range(4):
-            transform_list.append(camera2base_list[i][j, :].tolist())
-        transform_dict["transform_matrix"] = transform_list
+        transform_dict['image_path'] = os.path.realpath(os.path.join(root_path,img_path[i]))
+        # image = Image.open(transform_dict['image_path'])
+        
+        # transform_dict["file_path"] = "images/images_" + str("%04d"%(i+1)) + '.png'
+        # transform_list = []
+        R = camera2base_list[:3,:3].tolist()
+        T = camera2base_list[:,3][:3].tolist()
+        transform_dict["R"] = R
+        transform_dict["T"] = T
+        # for j in range(4):
+            # transform_list.append(camera2base_list[i][j, :].tolist())
+        # transform_dict["transform_matrix"] = transform_list
         frames.append(transform_dict)
     camera['frames'] = frames
-    camera_save = json.dumps(camera)
-    with open(save_path, "w") as file:
+    camera_save = json.dumps(camera,indent=1)
+    with open(save_path, "w",newline = "\n") as file:
         file.write(camera_save)
 
 def gen_image_info(camera2base_list, save_path):
@@ -289,33 +313,45 @@ if __name__ == "__main__":
     normal_path = path + 'normals/'
     mask_path = path + 'boundary_mask/'
     extrinsic_file = os.path.join(args.base_path,'hand2base.txt')
+    points_clouds_path = os.path.join(args.base_path,"pcds")
     transforms_save_path = path + 'transforms.json'
     camera_info_save_path = path + 'colmap/sparse/0/cameras.txt'
     images_info_save_path = path + 'colmap/sparse/0/images.txt'
     pts_save_path = path + 'colmap/sparse/0/points3D.txt'
-    pts, camera2base_list = get_pts_and_normal(depth_path, image_path, normal_path, extrinsic_file, mask_path)
-    gen_transforms(camera2base_list, transforms_save_path)
-    gen_image_info(camera2base_list, images_info_save_path)
-    gen_camera_info(camera_info_save_path)
-    # # source = pts[0]
-    # # targets = []
-    # # for i in range(len(pts) - 1):
-    # #     target = pts[i + 1]
-    # #     transform = coloricp(source, target)
-    # #     target = merge_point_clouds(target[:,:3], target[:,3:], np.linalg.inv(transform))
-    # #     targets.append(target)
-    # # targets.append(source)
-    # # all_points = np.concatenate(targets)
-    # # np.savetxt(pts_save_path, all_points)
-    # for i in range(len(pts)):
-    #     name = '/data/zyh/workspace/real_data/pcl_merge_data0122/vis' + str("%04d"%(i+1)) + '.txt'
-    #     np.savetxt(name, pts[i])
-    #     print('end')
+    import pdb
+    # pdb.set_trace()
+    pts, camera2base_list,imglist = get_pts_and_normal(depth_path, image_path, normal_path, extrinsic_file, mask_path)
+    point_clouds = o3d.PointCloud
+    os.makedirs(points_clouds_path,exist_ok = True)
+    for file,pt in zip(pts,imglist):
+        pcd = o3d.PointCloud()
+        filename = file.split(".")[0]
+        points,rgb,normals = pt
+        pcd.points = o3d.utility.Vector3dVector(points)
+        pcd.normals = o3d.utility.Vector3dVector(normals)
+        pcd.rgb = o3d.utility.Vector3dVector(rgb)
+        # point_clouds.append(pcd)
+        o3d.io.write_point_cloud(os.path.join(points_clouds_path,file+".pcd"),pcd)
+        point_clouds = point_clouds + pcd
+    o3d.io.write_point_cloud(os.path.join(args.base_path,"point_cloud.pcd"), point_clouds)
 
-    all_points = np.concatenate(pts)
-    index = np.random.choice(np.arange(0, all_points.shape[0]), size=all_points.shape[0] // 8, replace=False)
-    all_points = all_points[index]
-    np.savetxt(path + 'all_points.txt', all_points)
-    points_id = np.arange(1, all_points.shape[0] + 1).astype(np.int32)
-    all_points = np.concatenate((points_id[:, None], all_points), axis=1)
-    np.savetxt(pts_save_path, all_points)
+    
+    # pts [N,6]
+    gen_transforms(camera2base_list, transforms_save_path, imglist, args.base_path)
+    # 3dgs cam_infos list with
+    # 1. R and T matrix
+    # 2. FovX/FoVY
+    # 3. PIL image and image path
+    # 4. image width and height
+
+
+    # gen_image_info(camera2base_list, images_info_save_path)
+    # gen_camera_info(camera_info_save_path)
+
+    # all_points = np.concatenate(pts)
+    # index = np.random.choice(np.arange(0, all_points.shape[0]), size=all_points.shape[0] // 8, replace=False)
+    # all_points = all_points[index]
+    # np.savetxt(path + 'all_points.txt', all_points)
+    # points_id = np.arange(1, all_points.shape[0] + 1).astype(np.int32)
+    # all_points = np.concatenate((points_id[:, None], all_points), axis=1)
+    # np.savetxt(pts_save_path, all_points)
