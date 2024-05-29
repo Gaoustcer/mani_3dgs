@@ -158,8 +158,8 @@ def gen_transforms(camera2base_list, save_path,img_path,root_path):
         
         # transform_dict["file_path"] = "images/images_" + str("%04d"%(i+1)) + '.png'
         # transform_list = []
-        R = camera2base_list[:3,:3].tolist()
-        T = camera2base_list[:,3][:3].tolist()
+        R = camera2base_list[i][:3,:3].tolist()
+        T = camera2base_list[i][:,3][:3].tolist()
         transform_dict["R"] = R
         transform_dict["T"] = T
         # for j in range(4):
@@ -313,7 +313,7 @@ if __name__ == "__main__":
     normal_path = path + 'normals/'
     mask_path = path + 'boundary_mask/'
     extrinsic_file = os.path.join(args.base_path,'hand2base.txt')
-    points_clouds_path = os.path.join(args.base_path,"pcds")
+    points_clouds_path = os.path.join(args.root_path,"pcds")
     transforms_save_path = path + 'transforms.json'
     camera_info_save_path = path + 'colmap/sparse/0/cameras.txt'
     images_info_save_path = path + 'colmap/sparse/0/images.txt'
@@ -321,23 +321,23 @@ if __name__ == "__main__":
     import pdb
     # pdb.set_trace()
     pts, camera2base_list,imglist = get_pts_and_normal(depth_path, image_path, normal_path, extrinsic_file, mask_path)
-    point_clouds = o3d.PointCloud
+    point_clouds = o3d.PointCloud()
     os.makedirs(points_clouds_path,exist_ok = True)
-    for file,pt in zip(pts,imglist):
+    for file,pt in zip(imglist,pts):
         pcd = o3d.PointCloud()
         filename = file.split(".")[0]
         points,rgb,normals = pt
         pcd.points = o3d.utility.Vector3dVector(points)
         pcd.normals = o3d.utility.Vector3dVector(normals)
-        pcd.rgb = o3d.utility.Vector3dVector(rgb)
+        pcd.colors = o3d.utility.Vector3dVector(rgb)
         # point_clouds.append(pcd)
-        o3d.io.write_point_cloud(os.path.join(points_clouds_path,file+".pcd"),pcd)
+        o3d.io.write_point_cloud(os.path.join(points_clouds_path,filename+".pcd"),pcd)
         point_clouds = point_clouds + pcd
-    o3d.io.write_point_cloud(os.path.join(args.base_path,"point_cloud.pcd"), point_clouds)
+    o3d.io.write_point_cloud(os.path.join(args.root_path,"point_cloud.pcd"), point_clouds)
 
     
     # pts [N,6]
-    gen_transforms(camera2base_list, transforms_save_path, imglist, args.base_path)
+    gen_transforms(camera2base_list, transforms_save_path, imglist, args.root_path)
     # 3dgs cam_infos list with
     # 1. R and T matrix
     # 2. FovX/FoVY
