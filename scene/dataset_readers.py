@@ -66,7 +66,7 @@ def getNerfppNorm(cam_info):
     return {"translate": translate, "radius": radius}
 
 
-def real_camera_from_preprocess(cam_transform_json):
+def real_camera_from_preprocess(cam_transform_json,root_path):
     cam_infos = []
     import json
     with open(cam_transform_json,"r") as fp:
@@ -79,12 +79,12 @@ def real_camera_from_preprocess(cam_transform_json):
     # for idx, key in enumerate(cam_extrinsics): # iterate every key in the dict
     from tqdm import tqdm
     for idx,frame in tqdm(enumerate(frames)):
-        image_path = frame["image_path"]
+        image_path = os.path.join(root_path,"images",os.path.split(frame["image_path"])[-1])
         image = Image.open(image_path)
         uid = 1
         R = np.asarray(frame["R"])
         T = np.asarray(frame["T"])
-        image_name = os.path.split(image_path)[0]
+        image_name = os.path.split(image_path)[-1]
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
                               image_path=image_path, image_name=image_name, width=width, height=height) # store the image as well as param of cameras(Rotate matrix and Trans_matrix)
         cam_infos.append(cam_info)
@@ -94,7 +94,7 @@ def real_camera_from_preprocess(cam_transform_json):
 
 def readTransformerSceneInfo(path):
     transformer_path = os.path.join(path,"transforms.json")
-    cam_infos_unsorted = real_camera_from_preprocess(cam_transform_json = transformer_path)
+    cam_infos_unsorted = real_camera_from_preprocess(cam_transform_json = transformer_path,root_path = path)
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x: x.image_name)
     train_cam_infos = cam_infos
     nerf_normalization = getNerfppNorm(train_cam_infos)

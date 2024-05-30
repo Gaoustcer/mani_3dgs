@@ -54,6 +54,9 @@ class Scene:
         elif os.path.exists(os.path.join(args.source_path, "transforms_train.json")):
             print("Found transforms_train.json file, assuming Blender data set!")
             scene_info = sceneLoadTypeCallbacks["Blender"](args.source_path, args.white_background, args.eval)
+        elif os.path.exists(os.path.join(args.source_path,'transforms.json')):
+            print("use preprocess transformer.json")
+            scene_info = sceneLoadTypeCallbacks["Transformer"](args.source_path)
         else:
             assert False, "Could not recognize scene type!"
 
