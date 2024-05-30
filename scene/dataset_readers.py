@@ -22,7 +22,7 @@ from pathlib import Path
 from plyfile import PlyData, PlyElement
 from utils.sh_utils import SH2RGB
 from scene.gaussian_model import BasicPointCloud
-
+import json
 class CameraInfo(NamedTuple):
     uid: int
     R: np.array
@@ -65,6 +65,52 @@ def getNerfppNorm(cam_info):
 
     return {"translate": translate, "radius": radius}
 
+
+def real_camera_from_preprocess(cam_transform_json):
+    cam_infos = []
+    import json
+    with open(cam_transform_json,"r") as fp:
+        cam_transforms = json.load(fp)
+    FovY = cam_transforms['fl_y']
+    FovX = cam_transforms['fl_x']
+    frames = cam_transforms['frames']
+    width = cam_transforms['w']
+    height = cam_transforms['h']
+    # for idx, key in enumerate(cam_extrinsics): # iterate every key in the dict
+    from tqdm import tqdm
+    for idx,frame in tqdm(enumerate(frames)):
+        image_path = frame["image_path"]
+        image = Image.open(image_path)
+        uid = 1
+        R = np.asarray(frame["R"])
+        T = np.asarray(frame["T"])
+        image_name = os.path.split(image_path)[0]
+        cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
+                              image_path=image_path, image_name=image_name, width=width, height=height) # store the image as well as param of cameras(Rotate matrix and Trans_matrix)
+        cam_infos.append(cam_info)
+    sys.stdout.write('\n')
+    return cam_infos
+
+
+def readTransformerSceneInfo(path):
+    transformer_path = os.path.join(path,"transforms.json")
+    cam_infos_unsorted = real_camera_from_preprocess(cam_transform_json = transformer_path)
+    cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x: x.image_name)
+    train_cam_infos = cam_infos
+    nerf_normalization = getNerfppNorm(train_cam_infos)
+    test_cam_infos = []
+    point_cloud_path = os.path.join(path,"point_cloud.pcd")
+    import open3d as o3d
+    point_cloud = o3d.read_point_cloud(point_cloud_path)
+    pcd = BasicPointCloud(points = point_cloud.points,colors = point_cloud.colors, normals = point_cloud.normals)
+    return SceneInfo(
+        point_cloud = pcd,
+        train_cameras = train_cam_infos,
+        test_cameras = test_cam_infos,
+        nerf_normalization = nerf_normalization,
+        ply_path = point_cloud_path
+    )
+    # pass
 def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
     cam_infos = []
     for idx, key in enumerate(cam_extrinsics): # iterate every key in the dict
@@ -191,6 +237,8 @@ def readColmapSceneInfo(path, images, eval, llffhold=8): # path:root_path images
                            ply_path=ply_path)
     return scene_info
 
+
+
 def readCamerasFromTransforms(path, transformsfile, white_background, extension=".png"):
     cam_infos = []
 
@@ -271,5 +319,8 @@ def readNerfSyntheticInfo(path, white_background, eval, extension=".png"):
 
 sceneLoadTypeCallbacks = {
     "Colmap": readColmapSceneInfo,
-    "Blender" : readNerfSyntheticInfo
+    "Blender" : readNerfSyntheticInfo,
+    "Transformer": readTransformerSceneInfo
 }
+# if __name__ == "__main__":
+#     readTransformerSceneInfo(path = "real_path/scene_0001")

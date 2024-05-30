@@ -24,7 +24,8 @@ def depth_image_to_point_cloud(depth_image, color_image, fx, fy, cx, cy, camera2
     Z = depth_image
     X = (u - cx) * Z / fx
     Y = (v - cy) * Z / fy
-    mask = mask * (depth_image > 0.001) * (depth_image < 1.2)
+    # mask = mask * (depth_image > 0.001) * (depth_image < 1.2)
+    mask = mask * (depth_image > 1.000)
     mask = mask > 0
     point_cloud = np.dstack((X, Y, Z)) # [height, width, 3]
     point_cloud = point_cloud[mask] 
@@ -111,7 +112,8 @@ def get_pts_and_normal(depth_path, image_path, normal_path, extrinsic_file, mask
         camera2base_list.append(camera2base)
     f.close()
     for i in range(0, len(depth_list)):
-        depth = np.load(depth_path + depth_list[i]) / 1000
+        # depth = np.load(depth_path + depth_list[i]) / 1000
+        depth = np.load(depth_path + depth_list[i]) 
         image = np.array(Image.open(image_path + image_list[i]))
         mask = np.load(mask_path + mask_list[i])
         normal = np.load(normal_path + normal_list[i])
