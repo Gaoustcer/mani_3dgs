@@ -27,4 +27,10 @@ To generate pcd, simply run
 ```python
 python point_cloud_generate.py --root-path <root-to-dataset> --base-path <path_hand2base>
 ```
-This will generate two subdir under \<root-to-dataset\>, `pcds` store the point_cloud of each view and `mask_image` store 
+This will generate two subdir under \<root-to-dataset\>, `pcds` store the point_cloud of each view and `mask_image` store mask area for each image. This will also generate `point_cloud.pcd` under this path which integrates point-cloud under different views.
+## Training 3DGS
+```python
+python train.py -s <root-to-dataset>
+``` 
+This will use the integrated point-cloud. If you want to use a single-view point cloud, just `export OAR_JOB_ID=<relative-path-of-single-view-pcd-from-root-to-dataset>`
+To visualize the result, you can install [SIBR](https://sibr.gitlabpages.inria.fr/) and follow the instructions to run it.
