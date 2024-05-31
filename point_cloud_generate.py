@@ -8,6 +8,7 @@ import cv2
 import torch
 import torch.nn.functional as F
 import argparse
+from tqdm import tqdm
 """
 使用coloricp来计算每2帧之间的变换, 而后通过多视角rgb和depth来进行点云融合
 """
@@ -25,7 +26,8 @@ def depth_image_to_point_cloud(depth_image, color_image, fx, fy, cx, cy, camera2
     X = (u - cx) * Z / fx
     Y = (v - cy) * Z / fy
     # mask = mask * (depth_image > 0.001) * (depth_image < 1.2)
-    mask = mask * (depth_image > 1.000)
+    # mask = mask * (depth_image > 1.000)
+    mask = mask * (depth_image > 0.2) * (depth_image < 1.00)
     mask = mask > 0
     point_cloud = np.dstack((X, Y, Z)) # [height, width, 3]
     point_cloud = point_cloud[mask] 
@@ -33,7 +35,7 @@ def depth_image_to_point_cloud(depth_image, color_image, fx, fy, cx, cy, camera2
     normal = normal_image[mask]
     pts = merge_point_clouds(point_cloud, color, camera2base)
 
-    return pts,color,normal
+    return pts,color,normal,mask
 
 def merge_point_clouds(points, colors, trans):
     import pdb
@@ -111,7 +113,8 @@ def get_pts_and_normal(depth_path, image_path, normal_path, extrinsic_file, mask
         camera2base = np.dot(hand2base, camera2hand)
         camera2base_list.append(camera2base)
     f.close()
-    for i in range(0, len(depth_list)):
+
+    for i in tqdm(range(0, len(depth_list))):
         # depth = np.load(depth_path + depth_list[i]) / 1000
         depth = np.load(depth_path + depth_list[i]) 
         image = np.array(Image.open(image_path + image_list[i]))
@@ -308,6 +311,7 @@ if __name__ == "__main__":
     parser.add_argument("--root-path",type = str)
     parser.add_argument("--base-path",type = str)
     args = parser.parse_args()
+    print("dataset path",args.root_path)
     path = args.root_path
     # path = "/lustre/S/gaohaihan/emb_dataset/data_collection/scene_0001/"
     depth_path = path + 'depths/'
@@ -323,20 +327,27 @@ if __name__ == "__main__":
     import pdb
     # pdb.set_trace()
     pts, camera2base_list,imglist = get_pts_and_normal(depth_path, image_path, normal_path, extrinsic_file, mask_path)
+    # exit()
     point_clouds = o3d.PointCloud()
     os.makedirs(points_clouds_path,exist_ok = True)
-    for file,pt in zip(imglist,pts):
+    img_mask_path = os.path.join(path,"mask_image")
+    os.makedirs(img_mask_path,exist_ok=True)
+    for file,pt in tqdm(zip(imglist,pts)):
         pcd = o3d.PointCloud()
         filename = file.split(".")[0]
-        points,rgb,normals = pt
+        points,rgb,normals,masks = pt
         pcd.points = o3d.utility.Vector3dVector(points)
         pcd.normals = o3d.utility.Vector3dVector(normals)
         pcd.colors = o3d.utility.Vector3dVector(rgb)
+        print(file,np.mean(points,axis = 0),np.var(points,axis = 0))
         # point_clouds.append(pcd)
         o3d.io.write_point_cloud(os.path.join(points_clouds_path,filename+".pcd"),pcd)
+        masks.dtype = np.uint8
+        img = Image.fromarray(masks * 255)
+        img.save(os.path.join(img_mask_path,filename+".png"))
         point_clouds = point_clouds + pcd
     o3d.io.write_point_cloud(os.path.join(args.root_path,"point_cloud.pcd"), point_clouds)
-
+    print(point_clouds)
     
     # pts [N,6]
     gen_transforms(camera2base_list, transforms_save_path, imglist, args.root_path)

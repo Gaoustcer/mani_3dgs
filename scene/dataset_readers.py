@@ -92,14 +92,14 @@ def real_camera_from_preprocess(cam_transform_json,root_path):
     return cam_infos
 
 
-def readTransformerSceneInfo(path):
+def readTransformerSceneInfo(path,pcd_path = "point_cloud.pcd"):
     transformer_path = os.path.join(path,"transforms.json")
     cam_infos_unsorted = real_camera_from_preprocess(cam_transform_json = transformer_path,root_path = path)
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x: x.image_name)
     train_cam_infos = cam_infos
     nerf_normalization = getNerfppNorm(train_cam_infos)
     test_cam_infos = []
-    point_cloud_path = os.path.join(path,"point_cloud.pcd")
+    point_cloud_path = os.path.join(path,pcd_path)
     import open3d as o3d
     point_cloud = o3d.read_point_cloud(point_cloud_path)
     pcd = BasicPointCloud(points = point_cloud.points,colors = point_cloud.colors, normals = point_cloud.normals)
