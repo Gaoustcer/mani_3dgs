@@ -174,7 +174,7 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, depth_loss,elapsed
     if tb_writer:
         tb_writer.add_scalar('train_loss_patches/l1_loss', Ll1.item(), iteration)
         tb_writer.add_scalar('train_loss_patches/total_loss', loss.item(), iteration)
-        tb_writer.add_scalar("train_loss_pathes/depth_loss",depth_loss.item(),iteration)
+        tb_writer.add_scalar("train_loss_patches/depth_loss",depth_loss.item(),iteration)
         tb_writer.add_scalar('iter_time', elapsed, iteration)
 
     # Report test and samples of training set
