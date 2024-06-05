@@ -98,13 +98,14 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
         render_pkg = render(viewpoint_cam, gaussians, pipe, bg) # [render images]
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-        depth = render_pkg['depth_map']
+        depth = render_pkg['depth_map'] # [480,640]
         # Loss
         gt_image = viewpoint_cam.original_image.cuda()
         gt_depth = viewpoint_cam.depth.cuda()
         Ll1 = l1_loss(image, gt_image)
         depth_loss = l1_loss(depth,gt_depth)
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image)) + depth_loss
+        # loss = depth_loss
         loss.backward()
 
         iter_end.record()
