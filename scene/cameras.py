@@ -28,7 +28,9 @@ class Camera(nn.Module):
         self.FoVx = FoVx
         self.FoVy = FoVy
         self.image_name = image_name
-        self.depth = depth
+        if depth is not None:
+            self.depth = torch.from_numpy(depth).float()
+        
         try:
             self.data_device = torch.device(data_device)
         except Exception as e:
