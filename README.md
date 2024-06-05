@@ -28,6 +28,8 @@ To generate pcd, simply run
 python point_cloud_generate.py --root-path <root-to-dataset> --base-path <path_hand2base>
 ```
 This will generate two subdir under \<root-to-dataset\>, `pcds` store the point_cloud of each view and `mask_image` store mask area for each image. This will also generate `point_cloud.pcd` under this path which integrates point-cloud under different views.
+### downsample 3dgs
+We do not use point cloud alignment technique to match the point cloud. Therefore, the merged point cloud can be quite large, which will increase the time amd memory consumption in 3dgs trainning
 ## Training 3DGS
 ```python
 python train.py -s <root-to-dataset>
