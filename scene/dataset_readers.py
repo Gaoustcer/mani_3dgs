@@ -30,6 +30,7 @@ class CameraInfo(NamedTuple):
     FovY: np.array
     FovX: np.array
     image: np.array
+    depth: np.array
     image_path: str
     image_name: str
     width: int
@@ -79,14 +80,18 @@ def real_camera_from_preprocess(cam_transform_json,root_path):
     # for idx, key in enumerate(cam_extrinsics): # iterate every key in the dict
     from tqdm import tqdm
     for idx,frame in tqdm(enumerate(frames)):
-        image_path = os.path.join(root_path,"images",os.path.split(frame["image_path"])[-1])
+        image_file_name = os.path.split(frame['image_path'])[-1]
+        image_name = os.path.splitext(image_file_name)[0]
+        image_path = os.path.join(root_path,"images",image_file_name)
+        depth_path = os.path.join(root_path,"depths",image_name + ".npy")
+        depth = np.load(depth_path)
         image = Image.open(image_path)
         uid = 1
         R = np.asarray(frame["R"])
         T = np.asarray(frame["T"])
         image_name = os.path.split(image_path)[-1]
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
-                              image_path=image_path, image_name=image_name, width=width, height=height) # store the image as well as param of cameras(Rotate matrix and Trans_matrix)
+                              image_path=image_path, image_name=image_name, width=width,depth=depth, height=height) # store the image as well as param of cameras(Rotate matrix and Trans_matrix)
         cam_infos.append(cam_info)
     sys.stdout.write('\n')
     return cam_infos
