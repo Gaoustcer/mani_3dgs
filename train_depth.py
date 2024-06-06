@@ -102,6 +102,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         # Loss
         gt_image = viewpoint_cam.original_image.cuda()
         gt_depth = viewpoint_cam.depth.cuda()
+        mask = viewpoint_cam.mask.cuda()
         Ll1 = l1_loss(image, gt_image)
         depth_loss = l1_loss(depth,gt_depth)
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image)) + depth_loss
@@ -224,6 +225,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)
     parser.add_argument("--pcd-path",type = str,default = "point_cloud.pcd")
+    parser.add_argument("--load-mask",action="store_true")
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)
     

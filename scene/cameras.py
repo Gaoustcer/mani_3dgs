@@ -17,7 +17,7 @@ from utils.graphics_utils import getWorld2View2, getProjectionMatrix
 class Camera(nn.Module):
     def __init__(self, colmap_id, R, T, FoVx, FoVy, image, gt_alpha_mask,
                  image_name, uid,
-                 trans=np.array([0.0, 0.0, 0.0]), scale=1.0, data_device = "cuda",depth = None
+                 trans=np.array([0.0, 0.0, 0.0]), scale=1.0, data_device = "cuda",depth = None, mask = None
                  ):
         super(Camera, self).__init__()
 
@@ -30,7 +30,8 @@ class Camera(nn.Module):
         self.image_name = image_name
         if depth is not None:
             self.depth = torch.from_numpy(depth).float()
-        
+        if mask is not None:
+            self.mask = torch.from_numpy(mask).float()        
         try:
             self.data_device = torch.device(data_device)
         except Exception as e:
