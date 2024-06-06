@@ -31,7 +31,7 @@ class Camera(nn.Module):
         if depth is not None:
             self.depth = torch.from_numpy(depth).float()
         if mask is not None:
-            self.mask = torch.from_numpy(mask).float()        
+            self.mask = torch.from_numpy(mask).float()/255.0       
         try:
             self.data_device = torch.device(data_device)
         except Exception as e:

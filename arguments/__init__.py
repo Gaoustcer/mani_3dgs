@@ -55,7 +55,7 @@ class ModelParams(ParamGroup):
         self.data_device = "cuda"
         self.eval = False
         self.pcd_path = "point_cloud.pcd"
-        self.load_model = False
+        self.load_mask = False
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):

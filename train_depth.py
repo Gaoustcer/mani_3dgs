@@ -39,6 +39,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     first_iter = 0
     tb_writer = prepare_output_and_logger(dataset)
     gaussians = GaussianModel(dataset.sh_degree)
+    load_mask = dataset.load_mask
     # gaussians active_sh_degree 0
     # max_sh_degree 3
     # _xyz [N,3] N number of gaussians
@@ -103,8 +104,10 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         gt_image = viewpoint_cam.original_image.cuda()
         gt_depth = viewpoint_cam.depth.cuda()
         mask = viewpoint_cam.mask.cuda()
-        Ll1 = l1_loss(image, gt_image)
-        depth_loss = l1_loss(depth,gt_depth)
+        if load_mask == False:
+            mask = torch.ones_like(mask)
+        Ll1 = l1_loss(image * mask, gt_image * mask)
+        depth_loss = l1_loss(depth * mask,gt_depth * mask)
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image)) + depth_loss
         # loss = depth_loss
         loss.backward()
