@@ -1,3 +1,5 @@
+from genericpath import isdir
+from altair import param
 import numpy as np
 from PIL import Image
 import open3d as o3d
@@ -9,11 +11,14 @@ import torch
 import torch.nn.functional as F
 import argparse
 from tqdm import tqdm
+CAMERA_NAMES = ['front.npy', 'left_shoulder.npy', 'overhead.npy', 'right_shoulder.npy', 'wrist.npy']
+for idx in range(len(CAMERA_NAMES)):
+    CAMERA_NAMES[idx] = CAMERA_NAMES[idx].split(".")[0]
 """
 使用coloricp来计算每2帧之间的变换, 而后通过多视角rgb和depth来进行点云融合
 """
 
-def depth_image_to_point_cloud(depth_image, color_image, fx, fy, cx, cy, camera2base, mask,normal_image):
+def depth_image_to_point_cloud(depth_image, color_image, fx, fy, cx, cy, camera2base):
     """
     param
     depth_image: 深度信息
@@ -27,15 +32,15 @@ def depth_image_to_point_cloud(depth_image, color_image, fx, fy, cx, cy, camera2
     Y = (v - cy) * Z / fy
     # mask = mask * (depth_image > 0.001) * (depth_image < 1.2)
     # mask = mask * (depth_image > 1.000)
-    mask = mask * (depth_image > 0.2) * (depth_image < 1.00)
+    mask = (depth_image > 0.2) * (depth_image < 2.00)
     mask = mask > 0
     point_cloud = np.dstack((X, Y, Z)) # [height, width, 3]
     point_cloud = point_cloud[mask] 
     color = color_image[mask]/255.0  
-    normal = normal_image[mask]
+    # normal = normal_image[mask]
     pts = merge_point_clouds(point_cloud, color, camera2base)
 
-    return pts,color,normal,mask
+    return pts,color,mask
 
 def merge_point_clouds(points, colors, trans):
     import pdb
@@ -84,43 +89,45 @@ def coloricp(source, target):
 
     return current_transformation
 
-def get_pts_and_normal(depth_path, image_path, normal_path, extrinsic_file, mask_path):
-    fx, fy = 385.86016845703125, 385.3817443847656  # Focal lengths in x and y
-    cx, cy = 325.68145751953125, 243.561767578125  # Principal point (image center)
-    intrinsic = np.array([[385.86016845703125, 0.0, 325.68145751953125],
-                          [0.0, 385.3817443847656, 243.561767578125],
-                          [0.0, 0.0, 1.0]])
-    camera2hand = np.array([[0.70710678,  0.70710678,   0,  0.008],
-                            [-0.70710678, 0.70710678,   0, -0.008],
-                            [0,           0,            1,  0.026],
-                            [0,           0,            0,  1    ]])
-    depth_list = sorted(os.listdir(depth_path))
-    image_list = sorted(os.listdir(image_path))
-    mask_list = sorted(os.listdir(mask_path))
-    normal_list = sorted(os.listdir(normal_path))
-    f = open(extrinsic_file, 'r')
+def get_pts_and_normal(depth_path, image_path, extrinsic_file):
+    # depth_list = sorted(os.listdir(depth_path))
+    # image_list = sorted(os.listdir(image_path))
+    # mask_list = sorted(os.listdir(mask_path))
+    # normal_list = sorted(os.listdir(normal_path))
+    # f = open(extrinsic_file, 'r')
+    with open(extrinsic_file,"r") as fp:
+        transformation = json.load(fp)
     pts = []
     camera2base_list = []
-    for i in range(len(depth_list)):
-        param = f.readline().split(', ')
-        rot_vec = np.array([float(param[3]), float(param[4]), float(param[5])])
-        trans = np.array([float(param[0]), float(param[1]), float(param[2])]).T
-        rot_mat = R.from_rotvec(rot_vec).as_matrix()
+    fx_list = []
+    fy_list = []
+    cx_list = []
+    cy_list = []
+
+    for cam_name in CAMERA_NAMES:
+        params = transformation[cam_name]
+        # rot_vec = np.array([float(param[3]), float(param[4]), float(param[5])])
+        # trans = np.array([float(param[0]), float(param[1]), float(param[2])]).T
+        # rot_mat = R.from_rotvec(rot_vec).as_matrix()
+        rot_mat = np.asarray(params['R'])
+        trans = np.asarray(params["T"])
         hand2base = np.zeros((4,4))
         hand2base[:3,:3] = rot_mat
         hand2base[:3,3] = trans
         hand2base[3,3] = 1
-        camera2base = np.dot(hand2base, camera2hand)
-        camera2base_list.append(camera2base)
-    f.close()
-
-    for i in tqdm(range(0, len(depth_list))):
-        # depth = np.load(depth_path + depth_list[i]) / 1000
-        depth = np.load(depth_path + depth_list[i])
-        image = np.array(Image.open(image_path + image_list[i]))
-        mask = np.load(mask_path + mask_list[i])
-        normal = np.load(normal_path + normal_list[i])
-        point_cloud = depth_image_to_point_cloud(depth, image, fx, fy, cx, cy, camera2base_list[i], mask, normal) 
+        fx_list.append(params['fl_x'])
+        fy_list.append(params['fl_y'])
+        cx_list.append(params['cx'])
+        cy_list.append(params['cy'])
+        # camera2base = np.dot(hand2base, camera2hand)
+        camera2base_list.append(hand2base)
+    # f.close()
+    for cam_name,cam2base,fx,fy,cx,cy in zip(
+        CAMERA_NAMES,camera2base_list,fx_list,fy_list,cx_list,cy_list
+    ):
+        depth = np.load(os.path.join(depth_path,"{}.npy".format(cam_name)))
+        image = np.array(Image.open(os.path.join(image_path,"{}.png".format(cam_name))))
+        point_cloud = depth_image_to_point_cloud(depth, image, fx, fy, cx, cy, cam2base) # pts,color,mask
         # point_cloud includes 
         # 1. point coordinate
         # 2. rgb [0,1]
@@ -132,7 +139,7 @@ def get_pts_and_normal(depth_path, image_path, normal_path, extrinsic_file, mask
     #     cal_normal(depth, camera2base_list[i], save_path)
         # least_square_normal(depth, intrinsic, camera2base_list[i], save_path)
     # print(pts)
-    return pts, camera2base_list,image_list
+    return pts, camera2base_list
 
 
 def gen_transforms(camera2base_list, save_path,img_path,root_path):
@@ -309,48 +316,54 @@ if __name__ == "__main__":
     # path = '/data/zyh/workspace/real_data/pcl_merge_data0303/'
     parser = argparse.ArgumentParser()
     parser.add_argument("--root-path",type = str)
-    parser.add_argument("--base-path",type = str)
+    parser.add_argument("--delete-wrist",action = "store_true")
+    # parser.add_argument("--base-path",type = str)
     args = parser.parse_args()
     print("dataset path",args.root_path)
-    path = args.root_path
+    if args.delete_wrist:
+        del CAMERA_NAMES[-1]
+    # path = args.root_path
     # path = "/lustre/S/gaohaihan/emb_dataset/data_collection/scene_0001/"
-    depth_path = path + 'depths/'
-    image_path = path + 'images/'
-    normal_path = path + 'normals/'
-    mask_path = path + 'boundary_mask/'
-    extrinsic_file = os.path.join(args.base_path,'hand2base.txt')
-    points_clouds_path = os.path.join(args.root_path,"pcds_1")
-    transforms_save_path = path + 'transforms.json'
-    camera_info_save_path = path + 'colmap/sparse/0/cameras.txt'
-    images_info_save_path = path + 'colmap/sparse/0/images.txt'
-    pts_save_path = path + 'colmap/sparse/0/points3D.txt'
-    import pdb
-    # pdb.set_trace()
-    pts, camera2base_list,imglist = get_pts_and_normal(depth_path, image_path, normal_path, extrinsic_file, mask_path)
-    # exit()
-    point_clouds = o3d.PointCloud()
-    os.makedirs(points_clouds_path,exist_ok = True)
-    img_mask_path = os.path.join(path,"mask_image")
-    os.makedirs(img_mask_path,exist_ok=True)
-    for file,pt in tqdm(zip(imglist,pts)):
-        pcd = o3d.PointCloud()
-        filename = file.split(".")[0]
-        points,rgb,normals,masks = pt
-        pcd.points = o3d.utility.Vector3dVector(points)
-        pcd.normals = o3d.utility.Vector3dVector(normals)
-        pcd.colors = o3d.utility.Vector3dVector(rgb)
-        print(file,np.mean(points,axis = 0),np.var(points,axis = 0))
-        # point_clouds.append(pcd)
-        o3d.io.write_point_cloud(os.path.join(points_clouds_path,filename+".pcd"),pcd)
-        masks.dtype = np.uint8
-        img = Image.fromarray(masks * 255)
-        img.save(os.path.join(img_mask_path,filename+".png"))
-        point_clouds = point_clouds + pcd
-    o3d.io.write_point_cloud(os.path.join(args.root_path,"point_cloud_1.pcd"), point_clouds)
-    print(point_clouds)
+    for episode in os.listdir(args.root_path):
+        path = os.path.join(args.root_path,episode)
+        if os.path.isdir(path):
+            depth_path = os.path.join(path,'depths')
+            image_path = os.path.join(path,'images')
+            if args.delete_wrist == False:
+                points_clouds_path = os.path.join(path,"pcds")
+            else:
+                points_clouds_path = os.path.join(path,"no_wrist_pcds")
+            transform_path = os.path.join(args.root_path,'cameras.json')
+            pts, camera2base_list = get_pts_and_normal(depth_path, image_path, transform_path)
+        # exit()
+            point_clouds = o3d.PointCloud()
+            os.makedirs(points_clouds_path,exist_ok = True)
+            img_mask_path = os.path.join(path,"mask_image")
+            os.makedirs(img_mask_path,exist_ok=True)
+            for file,pt in tqdm(zip(CAMERA_NAMES,pts)):
+                pcd = o3d.PointCloud()
+                filename = file.split(".")[0]
+                points,rgb,masks = pt
+                pcd.points = o3d.utility.Vector3dVector(points)
+                # pcd.normals = o3d.utility.Vector3dVector(normals)
+                pcd.colors = o3d.utility.Vector3dVector(rgb)
+                print(file,np.mean(points,axis = 0),np.var(points,axis = 0))
+                # point_clouds.append(pcd)
+                o3d.io.write_point_cloud(os.path.join(points_clouds_path,filename+".pcd"),pcd)
+                masks.dtype = np.uint8
+                img = Image.fromarray(masks * 255)
+                img.save(os.path.join(img_mask_path,filename+".png"))
+                point_clouds = point_clouds + pcd
+                print(pcd)
+            if args.delete_wrist == False:
+                o3d.io.write_point_cloud(os.path.join(path,"point_cloud.pcd"), point_clouds)
+            else:
+                o3d.io.write_point_cloud(os.path.join(path,"point_cloud_nowrist.pcd"), point_clouds)
+                
+            print(point_clouds)
     
     # pts [N,6]
-    gen_transforms(camera2base_list, transforms_save_path, imglist, args.root_path)
+    # gen_transforms(camera2base_list, transforms_save_path, imglist, args.root_path)
     # 3dgs cam_infos list with
     # 1. R and T matrix
     # 2. FovX/FoVY

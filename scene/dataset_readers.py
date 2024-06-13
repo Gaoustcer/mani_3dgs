@@ -100,6 +100,79 @@ def real_camera_from_preprocess(cam_transform_json,root_path):
     sys.stdout.write('\n')
     return cam_infos
 
+def loadrlbenchcamera(cam_transform_json,root_path):
+    cam_infos = []
+    import json
+    with open(cam_transform_json,"r") as fp:
+        cam_transforms = json.load(fp)
+    
+    cam_infos = []
+    from tqdm import tqdm
+    for cam_name in tqdm(cam_transforms):
+        cam_transform = cam_transforms[cam_name]
+        uid = 1
+        image_path = os.path.join(root_path,"images","{}.png".format(cam_name))
+        depth_path = os.path.join(root_path,"depths",cam_name+".npy")
+        mask_path = os.path.join(root_path,"mask_image",cam_name+".png")
+        depth = np.load(depth_path)
+        mask = Image.open(mask_path)
+        mask = np.asarray(mask)
+        image = Image.open(image_path)
+        # image = np.asarray(image)
+        FovY = cam_transform['fl_y']
+        FovX = cam_transform['fl_x']
+        # frames = cam_transforms['frames']
+        width = cam_transform['w']
+        height = cam_transform['h']
+        R = np.asarray(cam_transform['R'])
+        T = np.asarray(cam_transform['T'])
+        image_name = os.path.split(image_path)[-1]
+        cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,mask = mask,
+                              image_path=image_path, image_name=image_name, width=width,depth=depth, height=height) # store the image as well as param of cameras(Rotate matrix and Trans_matrix)
+        cam_infos.append(cam_info)
+
+    
+    # for idx, key in enumerate(cam_extrinsics): # iterate every key in the dict
+    from tqdm import tqdm
+    # for idx,frame in tqdm(enumerate(frames)):
+    #     image_file_name = os.path.split(frame['image_path'])[-1]
+    #     image_name = os.path.splitext(image_file_name)[0]
+    #     image_path = os.path.join(root_path,"images",image_file_name)
+    #     mask_path = os.path.join(root_path,"mask_image",image_file_name)
+    #     depth_path = os.path.join(root_path,"depths",image_name + ".npy")
+    #     mask = Image.open(mask_path)
+    #     mask = np.asarray(mask)
+    #     depth = np.load(depth_path)
+    #     image = Image.open(image_path)
+    #     uid = 1
+    #     R = np.asarray(frame["R"])
+    #     T = np.asarray(frame["T"])
+    #     image_name = os.path.split(image_path)[-1]
+    #     cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,mask = mask,
+    #                           image_path=image_path, image_name=image_name, width=width,depth=depth, height=height) # store the image as well as param of cameras(Rotate matrix and Trans_matrix)
+    #     cam_infos.append(cam_info)
+    sys.stdout.write('\n')
+    return cam_infos
+
+def readRLbenchTransformerSceneInfo(path,pcd_path = "point_cloud.pcd"):
+    transformer_path = os.path.join(path,"..","cameras.json")
+    cam_infos_unsorted = loadrlbenchcamera(cam_transform_json = transformer_path,root_path = path)
+    cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x: x.image_name)
+    train_cam_infos = cam_infos
+    nerf_normalization = getNerfppNorm(train_cam_infos)
+    test_cam_infos = []
+    point_cloud_path = os.path.join(path,pcd_path)
+    import open3d as o3d
+    point_cloud = o3d.read_point_cloud(point_cloud_path)
+    pcd = BasicPointCloud(points = point_cloud.points,colors = point_cloud.colors, normals = point_cloud.normals)
+    return SceneInfo(
+        point_cloud = pcd,
+        train_cameras = train_cam_infos,
+        test_cameras = test_cam_infos,
+        nerf_normalization = nerf_normalization,
+        ply_path = point_cloud_path
+    )
+
 
 def readTransformerSceneInfo(path,pcd_path = "point_cloud.pcd"):
     transformer_path = os.path.join(path,"transforms.json")
@@ -329,7 +402,8 @@ def readNerfSyntheticInfo(path, white_background, eval, extension=".png"):
 sceneLoadTypeCallbacks = {
     "Colmap": readColmapSceneInfo,
     "Blender" : readNerfSyntheticInfo,
-    "Transformer": readTransformerSceneInfo
+    "Transformer": readTransformerSceneInfo,
+    "RLbench": readRLbenchTransformerSceneInfo
 }
 # if __name__ == "__main__":
 #     readTransformerSceneInfo(path = "real_path/scene_0001")

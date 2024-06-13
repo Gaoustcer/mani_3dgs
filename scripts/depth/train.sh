@@ -18,8 +18,21 @@ do
         # echo $file
     fi
 done
+for file in $(ls ./real_data);
+do
+    if [[ $file == scene_0001* ]];then
+        # ((port=$port+5000))
+        # CUDA_VISIBLE_DEVICES=$DEVICEID python train_depth.py -s ./real_data/$file -m logs/depth_mask_novel_view/${file}_nodownsample --port $port --pcd-path point_cloud.pcd --load-mask --test_iterations 1 1000 7000 12000 30000  &
+        # ((DEVICEID=$DEVICEID+1))
+        # ((DEVICEID=$DEVICEID%$DEVICENUM))
+        for ratio in ${ratios[*]};do
+            ((port=$port+5000))
+            CUDA_VISIBLE_DEVICES=$DEVICEID python train_depth.py -s ./real_data/$file -m logs/depth_nomask/$file_$ratio --port $port --pcd-path point_cloud_$ratio.pcd --test_iterations 1 1000 7000 12000 30000 &
+            ((DEVICEID=$DEVICEID+1))
+            ((DEVICEID=$DEVICEID%$DEVICENUM))
+        done
+        # echo $file
+    fi
+done
 wait
 echo "training finish"
-# python train.py -s ./real_data/scene_0001 --port 12375
-
-

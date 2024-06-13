@@ -9,6 +9,7 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
+from operator import gt
 import os
 import torch
 from random import randint
@@ -20,6 +21,8 @@ from utils.general_utils import safe_state
 import uuid
 from tqdm import tqdm
 from utils.image_utils import psnr
+from scene.cameras import Camera
+import numpy as np
 from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams
 try:
@@ -124,7 +127,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 progress_bar.close()
 
             # Log and save
-            training_report(tb_writer, iteration, Ll1, loss, l1_loss,depth_loss,mask, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, (pipe, background))
+            training_report(tb_writer, iteration, Ll1, loss, l1_loss,depth_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, (pipe, background))
             if (iteration in saving_iterations):
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save(iteration)
@@ -174,12 +177,12 @@ def prepare_output_and_logger(args):
         print("Tensorboard not available: not logging progress")
     return tb_writer
 
-def training_report(tb_writer, iteration, Ll1, loss, l1_loss, depth_loss,mask,elapsed, testing_iterations, scene : Scene, renderFunc, renderArgs):
+def training_report(tb_writer, iteration, Ll1, loss, l1_loss, depth_loss,elapsed, testing_iterations, scene : Scene, renderFunc, renderArgs):
     if tb_writer:
         tb_writer.add_scalar('train_loss_patches/l1_loss', Ll1.item(), iteration)
         tb_writer.add_scalar('train_loss_patches/total_loss', loss.item(), iteration)
         tb_writer.add_scalar("train_loss_patches/depth_loss",depth_loss.item(),iteration)
-        tb_writer.add_scalar("train_loss_patches/mask",mask.mean().item(),iteration)
+        # tb_writer.add_scalar("train_loss_patches/mask",mask.mean().item(),iteration)
         tb_writer.add_scalar('iter_time', elapsed, iteration)
 
     # Report test and samples of training set
@@ -193,12 +196,40 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, depth_loss,mask,el
                 l1_test = 0.0
                 psnr_test = 0.0
                 for idx, viewpoint in enumerate(config['cameras']):
+                    viewpoint:Camera
                     image = torch.clamp(renderFunc(viewpoint, scene.gaussians, *renderArgs)["render"], 0.0, 1.0)
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
+                    # distort viewpoint
+                    from copy import deepcopy
+                    # novel_view = deepcopy(viewpoint)
+                    mask = viewpoint.mask.cuda()
+                    novel_R = deepcopy(viewpoint.R)
+                    novel_T = deepcopy(viewpoint.T)
+                    novel_R = np.random.normal(novel_R,0.1)
+                    novel_T = np.random.normal(novel_T,0.1)
+                    novel_view = Camera(
+                        colmap_id=viewpoint.colmap_id,
+                        R = novel_R,
+                        T = novel_T,
+                        FoVx = viewpoint.FoVx,
+                        FoVy = viewpoint.FoVy,
+                        image = viewpoint.original_image,
+                        gt_alpha_mask=None,
+                        image_name = viewpoint.image_name,
+                        uid = viewpoint.uid
+                    )
+                    distort_image = torch.clamp(renderFunc(novel_view, scene.gaussians, *renderArgs)["render"], 0.0, 1.0)
                     if tb_writer and (idx < 5):
+                        mask_image = mask * image
+                        # mask_gt = mask * gt_image
                         tb_writer.add_images(config['name'] + "_view_{}/render".format(viewpoint.image_name), image[None], global_step=iteration)
+                        tb_writer.add_images(config['name'] + "_view_{}/novel_view".format(viewpoint.image_name), distort_image[None], global_step=iteration)
+                        tb_writer.add_images(config['name'] + "_view_{}/render_mask".format(viewpoint.image_name), mask_image[None], global_step=iteration)
+                        tb_writer.add_images(config['name'] + "_view_{}/mask".format(viewpoint.image_name),mask[None][None],global_step=iteration)
                         if iteration == testing_iterations[0]:
+                            mask_gt = mask * gt_image
                             tb_writer.add_images(config['name'] + "_view_{}/ground_truth".format(viewpoint.image_name), gt_image[None], global_step=iteration)
+                            tb_writer.add_images(config['name'] + "_view_{}/ground_truth_mask".format(viewpoint.image_name), mask_gt[None], global_step=iteration)
                     l1_test += l1_loss(image, gt_image).mean().double()
                     psnr_test += psnr(image, gt_image).mean().double()
                 psnr_test /= len(config['cameras'])

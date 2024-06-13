@@ -57,6 +57,9 @@ class Scene:
         elif os.path.exists(os.path.join(args.source_path,'transforms.json')):
             print("use preprocess transformer.json")
             scene_info = sceneLoadTypeCallbacks["Transformer"](args.source_path,args.pcd_path)
+        elif os.path.exists(os.path.join(args.source_path,"..","cameras.json")):
+            print("load Rlbench datasets")
+            scene_info = sceneLoadTypeCallbacks["RLbench"](args.source_path,args.pcd_path)
         else:
             assert False, "Could not recognize scene type!"
 
