@@ -341,12 +341,12 @@ if __name__ == "__main__":
         pcd.colors = o3d.utility.Vector3dVector(rgb)
         print(file,np.mean(points,axis = 0),np.var(points,axis = 0))
         # point_clouds.append(pcd)
-        o3d.io.write_point_cloud(os.path.join(points_clouds_path,filename+".pcd"),pcd)
+        # o3d.io.write_point_cloud(os.path.join(points_clouds_path,filename+".pcd"),pcd)
         masks.dtype = np.uint8
         img = Image.fromarray(masks * 255)
         img.save(os.path.join(img_mask_path,filename+".png"))
-        point_clouds = point_clouds + pcd
-    o3d.io.write_point_cloud(os.path.join(args.root_path,"point_cloud_1.pcd"), point_clouds)
+        # point_clouds = point_clouds + pcd
+    # o3d.io.write_point_cloud(os.path.join(args.root_path,"point_cloud_1.pcd"), point_clouds)
     print(point_clouds)
     
     # pts [N,6]

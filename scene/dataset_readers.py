@@ -134,23 +134,6 @@ def loadrlbenchcamera(cam_transform_json,root_path):
     
     # for idx, key in enumerate(cam_extrinsics): # iterate every key in the dict
     from tqdm import tqdm
-    # for idx,frame in tqdm(enumerate(frames)):
-    #     image_file_name = os.path.split(frame['image_path'])[-1]
-    #     image_name = os.path.splitext(image_file_name)[0]
-    #     image_path = os.path.join(root_path,"images",image_file_name)
-    #     mask_path = os.path.join(root_path,"mask_image",image_file_name)
-    #     depth_path = os.path.join(root_path,"depths",image_name + ".npy")
-    #     mask = Image.open(mask_path)
-    #     mask = np.asarray(mask)
-    #     depth = np.load(depth_path)
-    #     image = Image.open(image_path)
-    #     uid = 1
-    #     R = np.asarray(frame["R"])
-    #     T = np.asarray(frame["T"])
-    #     image_name = os.path.split(image_path)[-1]
-    #     cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,mask = mask,
-    #                           image_path=image_path, image_name=image_name, width=width,depth=depth, height=height) # store the image as well as param of cameras(Rotate matrix and Trans_matrix)
-    #     cam_infos.append(cam_info)
     sys.stdout.write('\n')
     return cam_infos
 

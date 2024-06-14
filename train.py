@@ -8,6 +8,8 @@
 #
 # For inquiries contact  george.drettakis@inria.fr
 #
+from copy import deepcopy
+import numpy as np
 
 import os
 import torch
@@ -22,6 +24,7 @@ from tqdm import tqdm
 from utils.image_utils import psnr
 from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams
+from scene.cameras import Camera
 try:
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_FOUND = True
@@ -186,8 +189,25 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                 for idx, viewpoint in enumerate(config['cameras']):
                     image = torch.clamp(renderFunc(viewpoint, scene.gaussians, *renderArgs)["render"], 0.0, 1.0)
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
+                    novel_R = deepcopy(viewpoint.R)
+                    novel_T = deepcopy(viewpoint.T)
+                    novel_R = np.random.normal(novel_R,0.1)
+                    novel_T = np.random.normal(novel_T,0.1)
+                    novel_view = Camera(
+                        colmap_id=viewpoint.colmap_id,
+                        R = novel_R,
+                        T = novel_T,
+                        FoVx = viewpoint.FoVx,
+                        FoVy = viewpoint.FoVy,
+                        image = viewpoint.original_image,
+                        gt_alpha_mask=None,
+                        image_name = viewpoint.image_name,
+                        uid = viewpoint.uid
+                    )
+                    distort_image = torch.clamp(renderFunc(novel_view, scene.gaussians, *renderArgs)["render"], 0.0, 1.0)
                     if tb_writer and (idx < 5):
                         tb_writer.add_images(config['name'] + "_view_{}/render".format(viewpoint.image_name), image[None], global_step=iteration)
+                        tb_writer.add_images(config['name'] + "_view_{}/novel_view".format(viewpoint.image_name), distort_image[None], global_step=iteration)
                         if iteration == testing_iterations[0]:
                             tb_writer.add_images(config['name'] + "_view_{}/ground_truth".format(viewpoint.image_name), gt_image[None], global_step=iteration)
                     l1_test += l1_loss(image, gt_image).mean().double()

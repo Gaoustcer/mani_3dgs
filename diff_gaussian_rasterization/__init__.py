@@ -99,8 +99,10 @@ class _RasterizeGaussians(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_out_color, _):
-
+        # print("backward normal")
         # Restore necessary values from context
+        import pdb
+        # pdb.set_trace()
         num_rendered = ctx.num_rendered
         raster_settings = ctx.raster_settings
         colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer = ctx.saved_tensors
@@ -139,7 +141,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 raise ex
         else:
              grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations = _C.rasterize_gaussians_backward(*args)
-
+        # pdb.set_trace()
         grads = (
             grad_means3D,
             grad_means2D,

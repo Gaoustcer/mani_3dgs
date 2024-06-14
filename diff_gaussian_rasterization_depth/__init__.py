@@ -105,7 +105,9 @@ class _RasterizeGaussians(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_out_color, grad_radii, grad_out_depth, grad_weight):   #grad_out_color，LOSS对forward输出的导数。
-
+        print("backward depth")
+        import pdb
+        # pdb.set_trace()
         # Restore necessary values from context
         num_rendered = ctx.num_rendered
         raster_settings = ctx.raster_settings
@@ -160,7 +162,8 @@ class _RasterizeGaussians(torch.autograd.Function):
             grad_cov3Ds_precomp,
             None,
         )
-
+        print("color",grad_sh[:,0])
+        print("extend",grad_sh[:,1])
         return grads
 
 class GaussianRasterizationSettings(NamedTuple):
