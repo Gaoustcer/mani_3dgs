@@ -261,6 +261,8 @@ if __name__ == "__main__":
     parser.add_argument("--start_checkpoint", type=str, default = None)
     parser.add_argument("--pcd-path",type = str,default = "point_cloud.pcd")
     parser.add_argument("--load-mask",action="store_true")
+    parser.add_argument("--separate-cameras",action="store_true")
+    parser.add_argument("--improve-opacity",action = "store_true")
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)
     

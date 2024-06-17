@@ -1,0 +1,1 @@
+python -m pdb init_render.py -s real_data/scene_0001 -m logs/init_render/full --port 12375 --white_background

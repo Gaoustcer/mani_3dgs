@@ -27,7 +27,7 @@ def depth_image_to_point_cloud(depth_image, color_image, fx, fy, cx, cy, camera2
     Y = (v - cy) * Z / fy
     # mask = mask * (depth_image > 0.001) * (depth_image < 1.2)
     # mask = mask * (depth_image > 1.000)
-    mask = mask * (depth_image > 0.2) * (depth_image < 1.00)
+    mask = mask * (depth_image > 0)
     mask = mask > 0
     point_cloud = np.dstack((X, Y, Z)) # [height, width, 3]
     point_cloud = point_cloud[mask] 
@@ -345,8 +345,8 @@ if __name__ == "__main__":
         masks.dtype = np.uint8
         img = Image.fromarray(masks * 255)
         img.save(os.path.join(img_mask_path,filename+".png"))
-        # point_clouds = point_clouds + pcd
-    # o3d.io.write_point_cloud(os.path.join(args.root_path,"point_cloud_1.pcd"), point_clouds)
+        point_clouds = point_clouds + pcd
+    o3d.io.write_point_cloud(os.path.join(args.root_path,"point_cloud_>0.pcd"), point_clouds)
     print(point_clouds)
     
     # pts [N,6]

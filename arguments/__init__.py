@@ -56,6 +56,8 @@ class ModelParams(ParamGroup):
         self.eval = False
         self.pcd_path = "point_cloud.pcd"
         self.load_mask = False
+        self.separate_cameras = False
+        self.improve_opacity = False
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):

@@ -9,6 +9,7 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
+from copy import deepcopy
 import os
 import sys
 from PIL import Image
@@ -78,6 +79,8 @@ def real_camera_from_preprocess(cam_transform_json,root_path):
     frames = cam_transforms['frames']
     width = cam_transforms['w']
     height = cam_transforms['h']
+    FovY = focal2fov(FovY, height)
+    FovX = focal2fov(FovX, width)
     # for idx, key in enumerate(cam_extrinsics): # iterate every key in the dict
     from tqdm import tqdm
     for idx,frame in tqdm(enumerate(frames)):
@@ -93,6 +96,7 @@ def real_camera_from_preprocess(cam_transform_json,root_path):
         uid = 1
         R = np.asarray(frame["R"])
         T = np.asarray(frame["T"])
+        # R[:3,1:3] *= -1
         image_name = os.path.split(image_path)[-1]
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,mask = mask,
                               image_path=image_path, image_name=image_name, width=width,depth=depth, height=height) # store the image as well as param of cameras(Rotate matrix and Trans_matrix)
@@ -124,6 +128,8 @@ def loadrlbenchcamera(cam_transform_json,root_path):
         # frames = cam_transforms['frames']
         width = cam_transform['w']
         height = cam_transform['h']
+        FovY = focal2fov(FovY, height)
+        FovX = focal2fov(FovX, width)
         R = np.asarray(cam_transform['R'])
         T = np.asarray(cam_transform['T'])
         image_name = os.path.split(image_path)[-1]
@@ -157,17 +163,31 @@ def readRLbenchTransformerSceneInfo(path,pcd_path = "point_cloud.pcd"):
     )
 
 
-def readTransformerSceneInfo(path,pcd_path = "point_cloud.pcd"):
+def readTransformerSceneInfo(path,pcd_path = "point_cloud.pcd",sep = False):
     transformer_path = os.path.join(path,"transforms.json")
     cam_infos_unsorted = real_camera_from_preprocess(cam_transform_json = transformer_path,root_path = path)
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x: x.image_name)
-    train_cam_infos = cam_infos
+    
+    
+    if sep == False:
+        train_cam_infos = cam_infos
+        test_cam_infos = []
+    else:
+        from random import random
+        train_cam_infos = []
+        test_cam_infos = []
+        for cam_info in cam_infos:
+            if random() < 0.8:
+                train_cam_infos.append(deepcopy(cam_info))
+            else:
+                test_cam_infos.append(deepcopy(cam_info))
+    print("train_cam len",len(train_cam_infos))
+    print("test cam len",len(test_cam_infos))
     nerf_normalization = getNerfppNorm(train_cam_infos)
-    test_cam_infos = []
     point_cloud_path = os.path.join(path,pcd_path)
     import open3d as o3d
     point_cloud = o3d.read_point_cloud(point_cloud_path)
-    pcd = BasicPointCloud(points = point_cloud.points,colors = point_cloud.colors, normals = point_cloud.normals)
+    pcd = BasicPointCloud(points = np.asarray(point_cloud.points),colors = np.asarray(point_cloud.colors), normals = np.asarray(point_cloud.normals))
     return SceneInfo(
         point_cloud = pcd,
         train_cameras = train_cam_infos,

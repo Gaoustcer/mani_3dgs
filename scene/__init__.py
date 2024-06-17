@@ -56,7 +56,7 @@ class Scene:
             scene_info = sceneLoadTypeCallbacks["Blender"](args.source_path, args.white_background, args.eval)
         elif os.path.exists(os.path.join(args.source_path,'transforms.json')):
             print("use preprocess transformer.json")
-            scene_info = sceneLoadTypeCallbacks["Transformer"](args.source_path,args.pcd_path)
+            scene_info = sceneLoadTypeCallbacks["Transformer"](args.source_path,args.pcd_path,args.separate_cameras)
         elif os.path.exists(os.path.join(args.source_path,"..","cameras.json")):
             print("load Rlbench datasets")
             scene_info = sceneLoadTypeCallbacks["RLbench"](args.source_path,args.pcd_path)
@@ -95,7 +95,8 @@ class Scene:
                                                            "iteration_" + str(self.loaded_iter),
                                                            "point_cloud.ply"))
         else:
-            self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
+            print("load from ",scene_info.point_cloud,self.cameras_extent)
+            self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent,improve_opacity=args.improve_opacity)
 
     def save(self, iteration):
         point_cloud_path = os.path.join(self.model_path, "point_cloud/iteration_{}".format(iteration))
